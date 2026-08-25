@@ -308,6 +308,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             numPredict: settings.numPredict,
             contextMessages: settings.contextMessages,
             fileAttachment: fileAttachment ?? undefined,
+            numThread: settings.numThread,
           }),
         });
 
@@ -436,7 +437,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const response = await fetch("/api/generate-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: content }),
+          body: JSON.stringify({
+            prompt: content,
+            sidecarUrl: settings.imageGenerationUrl,
+          }),
         });
 
         const data = (await response.json().catch(() => null)) as {

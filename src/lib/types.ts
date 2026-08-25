@@ -57,13 +57,15 @@ export interface ChatRequestBody {
   contextMessages?: number;
   /** Text extracted from an uploaded file, appended to the last user message. */
   fileAttachment?: { name: string; text: string };
+  /** Number of CPU threads for Ollama inference. */
+  numThread?: number;
 }
 
 /** One newline-delimited JSON event from the /api/chat stream. */
 export type ChatStreamEvent =
   | { type: "delta"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "done"; durationMs: number | null }
+  | { type: "done"; durationMs: number | null; model?: string }
   | { type: "error"; error: string; code: ChatErrorCode };
 
 export type ChatErrorCode =
@@ -87,6 +89,24 @@ export interface HealthResponse {
   message: string;
 }
 
+export interface ImageGenerationRequestBody {
+  prompt: string;
+  width?: number;
+  height?: number;
+  /** Overrides the server's default sidecar URL for this request. */
+  sidecarUrl?: string;
+}
+
+export interface ImageGenerationSuccessResponse {
+  image: string;
+}
+
+/** Response from the sidecar's /health endpoint, proxied by GET /api/generate-image. */
+export interface ImageServiceHealth {
+  status: "ready" | "loading" | "offline" | string;
+  message?: string;
+}
+
 export interface AppSettings {
   model: string;
   temperature: number;
@@ -102,4 +122,6 @@ export interface AppSettings {
   imageGenerationEnabled: boolean;
   /** URL of the Python image generation sidecar. */
   imageGenerationUrl: string;
+  /** Number of CPU threads for Ollama. Higher = faster on multi-core. */
+  numThread: number;
 }

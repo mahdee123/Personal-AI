@@ -18,8 +18,27 @@ export const OLLAMA_BASE_URL = readEnv(
 
 export const DEFAULT_MODEL = readEnv("OLLAMA_MODEL", "qwen3:8b");
 
+/**
+ * Absolute backstop for a single chat request (connect + full generation).
+ * This should rarely be the thing that fires — OLLAMA_IDLE_TIMEOUT_MS below
+ * is the primary defense against a stuck request. This just bounds how long
+ * a pathologically slow-but-still-responding request can run before giving
+ * up. CPU-only vision analysis and deep-thinking replies can legitimately
+ * take several minutes, so this is intentionally generous.
+ */
 export const OLLAMA_TIMEOUT_MS = Number.parseInt(
-  readEnv("OLLAMA_TIMEOUT_MS", "180000"),
+  readEnv("OLLAMA_TIMEOUT_MS", "600000"),
+  10,
+);
+
+/**
+ * How long a streaming chat request may go without receiving any data before
+ * it's considered stuck and aborted. Resets on every chunk received, so a
+ * reply that's merely slow (not hung) is never killed by this — only a
+ * connection that's gone genuinely silent is.
+ */
+export const OLLAMA_IDLE_TIMEOUT_MS = Number.parseInt(
+  readEnv("OLLAMA_IDLE_TIMEOUT_MS", "90000"),
   10,
 );
 
@@ -37,6 +56,21 @@ export function resolveModel(requested?: string): string {
   return typeof requested === "string" && MODEL_NAME_PATTERN.test(requested)
     ? requested
     : DEFAULT_MODEL;
+}
+
+/**
+ * Heuristic for "can this Ollama model accept image input" — Ollama has no
+ * capability field for this, so it's a name match against known vision model
+ * families (qwen*-vl, llava, moondream, bakllava, etc.).
+ */
+export function isVisionModelName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.includes("vl") ||
+    lower.includes("vision") ||
+    lower.includes("llava") ||
+    lower.includes("moondream")
+  );
 }
 
 /**

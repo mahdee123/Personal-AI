@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkspace } from "@/context/WorkspaceProvider";
 import { useModelStatus } from "@/hooks/useModelStatus";
 import { cn } from "@/lib/utils";
 
@@ -8,7 +9,8 @@ import { cn } from "@/lib/utils";
  * Click to re-check immediately instead of waiting for the next poll.
  */
 export function ModelStatusBadge({ isGenerating }: { isGenerating?: boolean }) {
-  const { status, isChecking, refresh } = useModelStatus(isGenerating);
+  const { settings } = useWorkspace();
+  const { status, isChecking, refresh } = useModelStatus(settings.model, isGenerating);
 
   const state = isChecking && status.models.length === 0
     ? "checking"

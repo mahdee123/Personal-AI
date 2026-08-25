@@ -8,8 +8,55 @@ import { cn } from "@/lib/utils";
 
 const MAX_HEIGHT_PX = 200;
 const MAX_IMAGES = 4;
+const MAX_IMAGE_DIMENSION = 768;
 const ACCEPTED_FILE_TYPES = ".pdf,.txt,.md,.csv,.json";
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp,image/gif";
+
+/** Detects if a prompt is likely an image generation request. */
+function isImageGenerationIntent(text: string): boolean {
+  return /^(generate|draw|create|make|design)\s/i.test(text.trim());
+}
+
+/**
+ * Resizes an image file to fit within MAX_IMAGE_DIMENSION and converts to
+ * JPEG for smaller base64 output. Returns the base64-encoded string.
+ */
+function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+
+        if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+          const ratio = Math.min(MAX_IMAGE_DIMENSION / width, MAX_IMAGE_DIMENSION / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Export as JPEG for smaller size.
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const base64 = dataUrl.split(",")[1];
+        resolve(base64 ?? "");
+      };
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 interface FileAttachment {
   name: string;
@@ -28,7 +75,7 @@ interface ComposerProps {
   fileAttachment: FileAttachment | null;
   onFileAttachmentChange: (attachment: FileAttachment | null) => void;
   images: string[];
-  onImagesChange: (images: string[]) => void;
+  onImagesChange: (images: string[] | ((prev: string[]) => string[])) => void;
   imageGenerationEnabled: boolean;
   onGenerateImage: () => void;
   mode: ComposerMode;
@@ -125,17 +172,15 @@ export function Composer({
     const filesToProcess = Array.from(files).slice(0, remaining);
 
     for (const file of filesToProcess) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result;
-        if (typeof result === "string") {
-          const base64 = result.split(",")[1];
+      resizeImage(file)
+        .then((base64) => {
           if (base64) {
-            onImagesChange([...images, base64]);
+            onImagesChange((prev) => [...prev, base64]);
           }
-        }
-      };
-      reader.readAsDataURL(file);
+        })
+        .catch(() => {
+          // Silently skip failed images.
+        });
     }
 
     event.target.value = "";
@@ -151,17 +196,13 @@ export function Composer({
         const file = item.getAsFile();
         if (!file) continue;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result;
-          if (typeof result === "string") {
-            const base64 = result.split(",")[1];
+        resizeImage(file)
+          .then((base64) => {
             if (base64) {
-              onImagesChange([...images, base64]);
+              onImagesChange((prev) => [...prev, base64]);
             }
-          }
-        };
-        reader.readAsDataURL(file);
+          })
+          .catch(() => {});
         break;
       }
     }
@@ -174,17 +215,13 @@ export function Composer({
 
     for (const file of Array.from(files)) {
       if (file.type.startsWith("image/") && images.length < MAX_IMAGES) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result;
-          if (typeof result === "string") {
-            const base64 = result.split(",")[1];
+        resizeImage(file)
+          .then((base64) => {
             if (base64) {
-              onImagesChange([...images, base64]);
+              onImagesChange((prev) => [...prev, base64]);
             }
-          }
-        };
-        reader.readAsDataURL(file);
+          })
+          .catch(() => {});
       }
     }
   }
@@ -192,6 +229,10 @@ export function Composer({
   const canSend =
     !isGenerating &&
     (value.trim().length > 0 || (mode === "chat" && (fileAttachment !== null || images.length > 0)));
+
+  // Auto-detect image generation intent when in chat mode with image gen enabled.
+  const autoImageMode =
+    imageGenerationEnabled && mode === "chat" && isImageGenerationIntent(value);
 
   return (
     <div className="border-t border-line bg-canvas/80 px-4 pb-4 pt-3 backdrop-blur sm:px-6">
@@ -204,7 +245,7 @@ export function Composer({
               onClick={() => onModeChange("chat")}
               className={cn(
                 "rounded-lg px-3 py-1 text-[12px] font-medium transition",
-                mode === "chat"
+                mode === "chat" && !autoImageMode
                   ? "bg-accent/15 text-accent-soft"
                   : "text-faint hover:text-muted",
               )}
@@ -216,7 +257,7 @@ export function Composer({
               onClick={() => onModeChange("image")}
               className={cn(
                 "rounded-lg px-3 py-1 text-[12px] font-medium transition",
-                mode === "image"
+                (mode === "image" || autoImageMode)
                   ? "bg-amber-400/15 text-amber-300"
                   : "text-faint hover:text-muted",
               )}
@@ -309,9 +350,11 @@ export function Composer({
             placeholder={
               isGenerating
                 ? "Mahdee AI is responding…"
-                : mode === "image"
-                  ? "Describe the image you want to generate…"
-                  : "Message Mahdee AI…  (Enter to send, Shift + Enter for a new line)"
+                : autoImageMode
+                  ? "Image generation mode — press Enter to generate"
+                  : mode === "image"
+                    ? "Describe the image you want to generate…"
+                    : "Message Mahdee AI…  (Enter to send, Shift + Enter for a new line)"
             }
             className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-ink outline-none placeholder:text-faint disabled:cursor-not-allowed disabled:opacity-60"
           />
@@ -329,15 +372,15 @@ export function Composer({
             <button
               type="submit"
               disabled={!canSend}
-              title={mode === "image" ? "Generate image" : "Send message"}
+              title={autoImageMode || mode === "image" ? "Generate image" : "Send message"}
               className={cn(
                 "flex size-10 shrink-0 items-center justify-center rounded-xl transition disabled:cursor-not-allowed disabled:text-faint",
-                mode === "image"
+                autoImageMode || mode === "image"
                   ? "bg-amber-400 text-black hover:bg-amber-300 disabled:bg-surface-3"
                   : "bg-accent text-white hover:bg-accent-soft disabled:bg-surface-3",
               )}
             >
-              {mode === "image" ? (
+              {autoImageMode || mode === "image" ? (
                 <SparkIcon className="size-4" />
               ) : (
                 <SendIcon className="size-4" />

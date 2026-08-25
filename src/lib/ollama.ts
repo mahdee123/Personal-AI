@@ -5,6 +5,7 @@
 
 import {
   OLLAMA_BASE_URL,
+  OLLAMA_IDLE_TIMEOUT_MS,
   OLLAMA_KEEP_ALIVE,
   OLLAMA_TIMEOUT_MS,
 } from "@/lib/config";
@@ -80,6 +81,65 @@ async function ollamaFetch(
   }
 }
 
+/**
+ * Abort controller for a long-running stream, combining three independent
+ * triggers into one signal:
+ *  - the caller's own `userSignal` (Stop button / client disconnect) — fires
+ *    through untouched, so it stays classifiable as a plain cancellation
+ *  - an idle timer that resets on every `poke()` — fires only if the stream
+ *    goes genuinely silent, never merely because it's slow
+ *  - an absolute backstop timer as a last resort
+ *
+ * `AbortSignal.timeout()` alone can't express "reset on activity," and a
+ * plain `AbortController` used directly would silently overwrite whatever
+ * signal the caller passed in — both of which were bugs in the previous
+ * version of this file.
+ */
+function createStreamAbort(config: {
+  idleTimeoutMs: number;
+  maxTimeoutMs: number;
+  userSignal?: AbortSignal;
+}) {
+  const controller = new AbortController();
+  let fired: "idle" | "max" | null = null;
+
+  const triggerIdle = () => {
+    fired = "idle";
+    controller.abort(new DOMException("Idle timeout", "TimeoutError"));
+  };
+  const triggerMax = () => {
+    fired = "max";
+    controller.abort(new DOMException("Max timeout", "TimeoutError"));
+  };
+
+  let idleTimer = setTimeout(triggerIdle, config.idleTimeoutMs);
+  const maxTimer = setTimeout(triggerMax, config.maxTimeoutMs);
+
+  const onUserAbort = () => controller.abort(config.userSignal?.reason);
+
+  if (config.userSignal) {
+    if (config.userSignal.aborted) onUserAbort();
+    else config.userSignal.addEventListener("abort", onUserAbort);
+  }
+
+  return {
+    signal: controller.signal,
+    /** Call after every successfully received chunk to reset the idle clock. */
+    poke: () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(triggerIdle, config.idleTimeoutMs);
+    },
+    /** Call once the request finishes (success or failure) to release timers. */
+    dispose: () => {
+      clearTimeout(idleTimer);
+      clearTimeout(maxTimer);
+      config.userSignal?.removeEventListener("abort", onUserAbort);
+    },
+    /** Which of *our* timers fired, or null if still live or user-cancelled. */
+    firedTimeout: () => fired,
+  };
+}
+
 /** Longest suffix of `text` that could be the start of `tag`. */
 function partialTagLength(text: string, tag: string): number {
   const max = Math.min(tag.length - 1, text.length);
@@ -140,6 +200,9 @@ export interface StreamEvent {
   type: "delta" | "reasoning" | "done";
   text?: string;
   durationMs?: number | null;
+  /** The model that actually produced this reply — may differ from the
+   * requested one when the chat route auto-upgrades to a vision model. */
+  model?: string;
 }
 
 /**
@@ -153,21 +216,71 @@ export async function* streamChatCompletion(options: {
   temperature: number;
   think: boolean;
   numPredict?: number;
+  numThread?: number;
   signal?: AbortSignal;
 }): AsyncGenerator<StreamEvent> {
   const ollamaOptions: Record<string, unknown> = {
     temperature: options.temperature,
+    num_ctx: 4096,
   };
   if (typeof options.numPredict === "number" && options.numPredict > 0) {
     ollamaOptions.num_predict = options.numPredict;
   }
+  if (typeof options.numThread === "number" && options.numThread > 0) {
+    ollamaOptions.num_thread = options.numThread;
+  }
 
-  const response = await ollamaFetch(
-    "/api/chat",
-    {
+  const abort = createStreamAbort({
+    idleTimeoutMs: OLLAMA_IDLE_TIMEOUT_MS,
+    maxTimeoutMs: OLLAMA_TIMEOUT_MS,
+    userSignal: options.signal,
+  });
+
+  /**
+   * A genuine user cancellation (Stop button / disconnect) is rethrown as-is
+   * so the route handler's existing `DOMException name === "AbortError"`
+   * check keeps recognising it as a silent, expected cancellation. Anything
+   * else — our own idle/max timeout, or a real network failure — becomes a
+   * properly classified, clearly worded OllamaError.
+   */
+  function classify(error: unknown): never {
+    const timeout = abort.firedTimeout();
+
+    if (!timeout && options.signal?.aborted) {
+      throw error;
+    }
+
+    if (timeout === "idle") {
+      throw new OllamaError(
+        "timeout",
+        `The local model went quiet for more than ${Math.round(
+          OLLAMA_IDLE_TIMEOUT_MS / 1000,
+        )}s and may be stuck. Try again, or try a smaller model.`,
+        504,
+      );
+    }
+
+    if (timeout === "max") {
+      throw new OllamaError(
+        "timeout",
+        `The local model took longer than ${Math.round(
+          OLLAMA_TIMEOUT_MS / 1000,
+        )}s in total. Try a shorter prompt or a smaller model.`,
+        504,
+      );
+    }
+
+    throw toOllamaError(error);
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: options.signal,
+      cache: "no-store",
+      signal: abort.signal,
       body: JSON.stringify({
         model: options.model,
         messages: options.messages,
@@ -176,11 +289,14 @@ export async function* streamChatCompletion(options: {
         keep_alive: OLLAMA_KEEP_ALIVE,
         options: ollamaOptions,
       }),
-    },
-    OLLAMA_TIMEOUT_MS,
-  );
+    });
+  } catch (error) {
+    abort.dispose();
+    classify(error);
+  }
 
   if (!response.ok || !response.body) {
+    abort.dispose();
     const detail = await response.text().catch(() => "");
 
     if (response.status === 404) {
@@ -206,8 +322,17 @@ export async function* streamChatCompletion(options: {
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let done: boolean;
+      let value: Uint8Array | undefined;
+
+      try {
+        ({ done, value } = await reader.read());
+      } catch (error) {
+        classify(error);
+      }
+
       if (done) break;
+      abort.poke();
 
       pending += decoder.decode(value, { stream: true });
 
@@ -248,11 +373,13 @@ export async function* streamChatCompletion(options: {
               typeof chunk.total_duration === "number"
                 ? Math.round(chunk.total_duration / 1_000_000)
                 : null,
+            model: options.model,
           };
         }
       }
     }
   } finally {
+    abort.dispose();
     await reader.cancel().catch(() => {});
   }
 }

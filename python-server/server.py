@@ -1,10 +1,13 @@
 """
 Mahdee AI — Image Generation Sidecar
-Runs a local FLUX.1-schnell model via HuggingFace diffusers.
+Runs a local SDXL-Turbo model via HuggingFace diffusers.
 Start with: python server.py  (or use start.bat on Windows)
 
-CPU mode: Works but is slow (~3-8 minutes per image).
-GPU mode: Fast (~5-10 seconds per image).
+SDXL-Turbo is a fully open, ungated model — no HuggingFace login or access
+token required. It's a distilled, few-step model tuned for 512x512 output.
+
+CPU mode: ~20-60 seconds per image at 512x512.
+GPU mode: ~1 second per image.
 """
 
 import base64
@@ -27,14 +30,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MODEL_ID = "stabilityai/sdxl-turbo"
+# SDXL-Turbo was distilled at 512x512; that's the resolution it's actually
+# good at, and it's what keeps CPU generation in the tens-of-seconds range.
+NATIVE_RESOLUTION = 512
+
 pipe = None
 device = "cpu"
 
 
 class GenerateRequest(BaseModel):
     prompt: str
-    width: int = 1024
-    height: int = 1024
+    width: int = NATIVE_RESOLUTION
+    height: int = NATIVE_RESOLUTION
 
 
 class GenerateResponse(BaseModel):
@@ -57,32 +65,33 @@ def load_model():
     print("  Mahdee AI — Image Generation Server")
     print("=" * 50)
     print()
-    print("Loading FLUX.1-schnell model...")
-    print("First run will download ~24GB of model weights.")
-    print("This may take several minutes depending on your connection.")
+    print(f"Loading {MODEL_ID} model...")
+    print("First run will download ~7GB of model weights.")
+    print("This may take a few minutes depending on your connection.")
     print()
 
     try:
-        from diffusers import FluxPipeline
+        from diffusers import AutoPipelineForText2Image
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         if device == "cuda":
             print("CUDA GPU detected. Using GPU acceleration.")
-            pipe = FluxPipeline.from_pretrained(
-                "black-forest-labs/FLUX.1-schnell",
+            pipe = AutoPipelineForText2Image.from_pretrained(
+                MODEL_ID,
                 torch_dtype=torch.float16,
+                variant="fp16",
             )
             pipe.to("cuda")
         else:
-            print("No CUDA GPU detected. Running on CPU (slow mode).")
-            print("Each image will take ~3-8 minutes to generate.")
+            print("No CUDA GPU detected. Running on CPU.")
+            print("Each image will take roughly 20-60 seconds to generate.")
             print()
-            pipe = FluxPipeline.from_pretrained(
-                "black-forest-labs/FLUX.1-schnell",
+            pipe = AutoPipelineForText2Image.from_pretrained(
+                MODEL_ID,
                 torch_dtype=torch.float32,
             )
-            pipe.enable_model_cpu_offload()
+            pipe.to("cpu")
 
         print(f"Model loaded successfully on {device.upper()}")
         print()
@@ -96,7 +105,7 @@ def load_model():
         print()
         print("Possible fixes:")
         print("  1. Check your internet connection (model needs to download)")
-        print("  2. Ensure you have enough disk space (~24GB free)")
+        print("  2. Ensure you have enough disk space (~7GB free)")
         print("  3. Try: pip install --upgrade diffusers transformers")
         sys.exit(1)
 
@@ -111,18 +120,22 @@ async def health():
     if pipe is None:
         return HealthResponse(
             status="loading",
-            model="FLUX.1-schnell",
+            model=MODEL_ID,
             device="unknown",
             message="Model is still loading...",
         )
 
-    msg = "Ready" if device == "cuda" else "Ready (CPU mode — slow)"
+    msg = "Ready" if device == "cuda" else "Ready (CPU mode)"
     return HealthResponse(
         status="ready",
-        model="FLUX.1-schnell",
+        model=MODEL_ID,
         device=device,
         message=msg,
     )
+
+
+def round_to_multiple_of_8(value: int) -> int:
+    return max(8, round(value / 8) * 8)
 
 
 @app.post("/generate", response_model=GenerateResponse)
@@ -134,13 +147,14 @@ async def generate(request: GenerateRequest):
     print(f"Generating image: \"{request.prompt[:60]}...\"")
 
     try:
-        # FLUX.1-schnell uses 4 inference steps for fast generation.
-        # On CPU this is still slow but keeps output reasonable.
+        # SDXL-Turbo is a distilled 1-4 step model: more steps don't help,
+        # and it must run with guidance_scale=0 (no classifier-free guidance).
         image = pipe(
-            request.prompt,
-            width=min(request.width, 768),  # Cap resolution on CPU for speed
-            height=min(request.height, 768),
-            num_inference_steps=4,
+            prompt=request.prompt,
+            width=round_to_multiple_of_8(min(request.width, 768)),
+            height=round_to_multiple_of_8(min(request.height, 768)),
+            num_inference_steps=1,
+            guidance_scale=0.0,
         ).images[0]
 
         # Convert to base64 PNG.

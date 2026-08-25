@@ -20,23 +20,38 @@ const INITIAL: HealthResponse = {
 
 /**
  * Subscribes the UI to the local Ollama connection by polling /api/health.
- * Accepts an optional isGenerating flag — when true the health poll skips
- * preloadModel to avoid CPU contention during active generation.
+ *
+ * `model` tells the poll which model to actually keep warm — pass the
+ * currently selected model, not a hardcoded default. Otherwise every poll
+ * silently reloads a different model than the one in use, and the two sit
+ * resident in memory at the same time for no reason (this doubled the
+ * resident model footprint and starved a vision request during testing).
+ *
+ * `isGenerating`: when true the health poll skips preloadModel to avoid CPU
+ * contention during active generation.
  */
-export function useModelStatus(isGenerating = false) {
+export function useModelStatus(model?: string, isGenerating = false) {
   const [status, setStatus] = useState<HealthResponse>(INITIAL);
   const [isChecking, setIsChecking] = useState(true);
   const isGeneratingRef = useRef(isGenerating);
+  const modelRef = useRef(model);
 
-  // Keep the ref in sync so the interval callback reads the latest value.
+  // Keep the refs in sync so the interval callback reads the latest values.
   useEffect(() => {
     isGeneratingRef.current = isGenerating;
+    modelRef.current = model;
   });
 
   const refresh = useCallback(async () => {
     try {
-      const active = isGeneratingRef.current ? "?active=1" : "";
-      const response = await fetch(`/api/health${active}`, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (isGeneratingRef.current) params.set("active", "1");
+      if (modelRef.current) params.set("model", modelRef.current);
+      const query = params.toString();
+
+      const response = await fetch(`/api/health${query ? `?${query}` : ""}`, {
+        cache: "no-store",
+      });
       const data = (await response.json()) as HealthResponse;
       setStatus(data);
     } catch {

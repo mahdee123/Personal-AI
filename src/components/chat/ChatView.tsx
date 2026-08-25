@@ -7,6 +7,11 @@ import { MessageList } from "@/components/chat/MessageList";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { useWorkspace } from "@/context/WorkspaceProvider";
 
+/** Detects if a prompt is likely an image generation request. */
+function isImageGenerationIntent(text: string): boolean {
+  return /^(generate|draw|create|make|design)\s/i.test(text.trim());
+}
+
 interface FileAttachment {
   name: string;
   text: string;
@@ -36,6 +41,17 @@ export function ChatView() {
     setInput("");
     setFileAttachment(null);
     setImages([]);
+
+    // Auto-detect image generation intent in chat mode.
+    if (
+      settings.imageGenerationEnabled &&
+      mode === "chat" &&
+      isImageGenerationIntent(text)
+    ) {
+      void generateImage(text);
+      return;
+    }
+
     void sendMessage(
       text,
       attachment ?? undefined,

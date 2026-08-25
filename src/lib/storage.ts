@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   contextMessages: 10,
   imageGenerationEnabled: false,
   imageGenerationUrl: "http://localhost:8000",
+  numThread: 4,
 };
 
 function isBrowser(): boolean {
@@ -120,6 +121,12 @@ export function loadSettings(): AppSettings {
         parsed.imageGenerationUrl.length > 0
           ? parsed.imageGenerationUrl
           : DEFAULT_SETTINGS.imageGenerationUrl,
+      numThread:
+        typeof parsed.numThread === "number" &&
+        parsed.numThread >= 1 &&
+        parsed.numThread <= 32
+          ? Math.round(parsed.numThread)
+          : DEFAULT_SETTINGS.numThread,
     };
   } catch {
     return DEFAULT_SETTINGS;

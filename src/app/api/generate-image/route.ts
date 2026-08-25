@@ -1,22 +1,41 @@
 import { NextResponse } from "next/server";
 
+import type {
+  ImageGenerationRequestBody,
+  ImageServiceHealth,
+} from "@/lib/types";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SIDECAR_URL =
+const DEFAULT_SIDECAR_URL =
   process.env.IMAGE_GENERATION_URL || "http://localhost:8000";
 
-interface GenerateImageBody {
-  prompt?: string;
-  width?: number;
-  height?: number;
+/**
+ * Resolves the sidecar URL to use for this request: the caller's Settings
+ * value takes priority, falling back to the server env var / built-in
+ * default when absent or invalid. Only http/https URLs are accepted.
+ */
+function resolveSidecarUrl(candidate: string | null | undefined): string {
+  const trimmed = candidate?.trim();
+  if (!trimmed) return DEFAULT_SIDECAR_URL;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return DEFAULT_SIDECAR_URL;
+    }
+    return trimmed.replace(/\/+$/, "");
+  } catch {
+    return DEFAULT_SIDECAR_URL;
+  }
 }
 
 export async function POST(request: Request) {
-  let body: GenerateImageBody;
+  let body: ImageGenerationRequestBody;
 
   try {
-    body = (await request.json()) as GenerateImageBody;
+    body = (await request.json()) as ImageGenerationRequestBody;
   } catch {
     return NextResponse.json(
       { error: "Request body must be valid JSON.", code: "bad_request" },
@@ -32,17 +51,19 @@ export async function POST(request: Request) {
     );
   }
 
+  const sidecarUrl = resolveSidecarUrl(body.sidecarUrl);
+
   try {
-    // CPU mode can take several minutes per image.
-    const response = await fetch(`${SIDECAR_URL}/generate`, {
+    // SDXL-Turbo is distilled for 512x512; CPU mode is tens of seconds/image.
+    const response = await fetch(`${sidecarUrl}/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt,
-        width: body.width ?? 1024,
-        height: body.height ?? 1024,
+        width: body.width ?? 512,
+        height: body.height ?? 512,
       }),
-      signal: AbortSignal.timeout(600_000), // 10 minutes for CPU mode
+      signal: AbortSignal.timeout(180_000), // 3 minutes is generous for CPU mode
     });
 
     if (!response.ok) {
@@ -74,7 +95,7 @@ export async function POST(request: Request) {
         "Image generation timed out. On CPU mode, try a shorter prompt or smaller resolution.";
     } else {
       message =
-        "Cannot connect to the image generation service. " +
+        `Cannot connect to the image generation service at ${sidecarUrl}. ` +
         "Make sure you have Python installed and run: python-server\\start.bat";
     }
 
@@ -85,19 +106,22 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+/** Health check proxy, used by the "Image service" status indicator in Settings. */
+export async function GET(request: Request) {
+  const requestedUrl = new URL(request.url).searchParams.get("url");
+  const sidecarUrl = resolveSidecarUrl(requestedUrl);
+
   try {
-    const response = await fetch(`${SIDECAR_URL}/health`, {
+    const response = await fetch(`${sidecarUrl}/health`, {
       signal: AbortSignal.timeout(5_000),
     });
-    const data = await response.json();
+    const data = (await response.json()) as ImageServiceHealth;
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json(
+    return NextResponse.json<ImageServiceHealth>(
       {
         status: "offline",
-        message:
-          "Image generation service is not running. Run: python-server\\start.bat",
+        message: `Image generation service is not reachable at ${sidecarUrl}. Run: python-server\\start.bat`,
       },
       { status: 200 },
     );

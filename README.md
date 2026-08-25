@@ -43,6 +43,7 @@ Copy `.env.local.example` to `.env.local` to change any of these:
 | `OLLAMA_MODEL` | `qwen3:8b` |
 | `OLLAMA_TIMEOUT_MS` | `180000` |
 | `OLLAMA_KEEP_ALIVE` | `30m` |
+| `IMAGE_GENERATION_URL` | `http://localhost:8000` (image generation sidecar; overridable per-request from Settings) |
 
 These are read on the server only — the Ollama endpoint never reaches the browser.
 
@@ -108,15 +109,69 @@ message rather than an empty stream.
 `src/app/api/health/route.ts` polls `/api/tags` so the header can show whether
 the local model is reachable.
 
+## File upload (PDF, text, Markdown, CSV, JSON)
+
+The composer's paperclip button uploads a document to `POST /api/upload`
+(`src/app/api/upload/route.ts`), which accepts `application/pdf`, `text/plain`,
+`text/markdown`, `text/csv`, and `application/json` up to 10MB. PDFs are parsed
+with `unpdf`; other types are read as UTF-8 text. The extracted text comes back
+as `{ text, fileName, pageCount }`, is held client-side as a `fileAttachment`,
+and `/api/chat` appends it to the last user message before it reaches Ollama.
+This is a plain text-extraction pipeline — it has nothing to do with images.
+
+## Image analysis (vision)
+
+Attach images to a chat message via the composer's image button, paste, or
+drag-and-drop (up to 4 per message, PNG/JPEG/WebP/GIF). They're stored as
+base64 and forwarded on Ollama's native `images` field.
+
+`qwen3:8b` is text-only, so `src/app/api/chat/route.ts` guards this: if any
+message carries images and the selected model's name doesn't contain `vl`,
+`vision`, `llava`, or `moondream`, the request is rejected before it reaches
+Ollama with a message telling you to install a vision model. To use it:
+
+```bash
+ollama pull qwen3-vl:8b
+```
+
+then select it in Settings → Local model. This check is a capability gate, not
+a content filter — there is no safety/moderation layer in this app.
+
+## Image generation
+
+The composer has a Chat/Image mode toggle, shown once **Settings → Image
+generation** is turned on. Prompts in Image mode go to `POST
+/api/generate-image` (`src/app/api/generate-image/route.ts`), which proxies to
+a separate local Python service — not Ollama — running
+[SDXL-Turbo](https://huggingface.co/stabilityai/sdxl-turbo) via HuggingFace
+`diffusers`. SDXL-Turbo is fully open and ungated — no HuggingFace account or
+access token needed (unlike FLUX.1-schnell, which requires accepting a
+license on huggingface.co and is not what this app uses):
+
+```bash
+python-server\start.bat
+```
+
+The first run downloads the model weights (~7GB) and creates a virtualenv
+from `python-server/requirements.txt` (torch, diffusers, transformers,
+accelerate, fastapi, uvicorn). SDXL-Turbo is distilled for fast, few-step
+generation at 512×512 (requests are capped at 768×768 and rounded to a
+multiple of 8); CPU-only generation takes roughly 20-60s per image, a CUDA GPU
+brings that down to about a second. The sidecar URL defaults to
+`http://localhost:8000` and is configurable per-browser in Settings, which
+also shows a live "Image service" status readout.
+
 ## Project structure
 
 ```
 src/
 ├─ app/
-│  ├─ api/chat/route.ts      Chat endpoint → Ollama
-│  ├─ api/health/route.ts    Connection status
-│  ├─ layout.tsx             Root layout + WorkspaceProvider
-│  ├─ globals.css            Theme tokens, Markdown styles
+│  ├─ api/chat/route.ts           Chat endpoint → Ollama (text + vision)
+│  ├─ api/health/route.ts         Ollama connection status
+│  ├─ api/upload/route.ts         PDF/text file → extracted text
+│  ├─ api/generate-image/route.ts Proxy to the Python image-generation sidecar
+│  ├─ layout.tsx                  Root layout + WorkspaceProvider
+│  ├─ globals.css                 Theme tokens, Markdown styles
 │  └─ page.tsx
 ├─ components/
 │  ├─ chat/                  Message list, bubbles, Markdown, composer
@@ -124,8 +179,10 @@ src/
 │  ├─ ui/                    Icons, model status badge
 │  └─ views/                 Settings, roadmap screens
 ├─ context/WorkspaceProvider.tsx   Conversations, settings, request lifecycle
-├─ hooks/                    useModelStatus, useIsHydrated
+├─ hooks/                    useModelStatus, useImageServiceStatus, useIsHydrated
 └─ lib/                      config, ollama client, system prompt, storage, types
+
+python-server/    FastAPI + FLUX.1-schnell sidecar for image generation (optional, separate runtime)
 ```
 
 ## Storage
@@ -137,7 +194,8 @@ touching any component.
 
 ## Not built yet (v1 scope)
 
-Projects and the Knowledge Base are placeholders that say so on screen. Planned
-for later versions: PDF upload and analysis, Google Docs integration, RAG over a
-vector database, project workspaces, image generation, DOCX/PDF export, and
-long-term memory.
+Projects and the Knowledge Base are placeholders that say so on screen. Chat,
+PDF upload, image analysis (vision), and image generation are all implemented
+— see the sections above. Still planned for later versions: Google Docs
+integration, RAG over a vector database, project workspaces, DOCX/PDF export,
+and long-term memory.

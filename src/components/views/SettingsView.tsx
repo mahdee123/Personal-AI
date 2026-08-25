@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { useWorkspace } from "@/context/WorkspaceProvider";
+import { useImageServiceStatus } from "@/hooks/useImageServiceStatus";
 import { useModelStatus } from "@/hooks/useModelStatus";
 import { MODEL_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -65,7 +66,11 @@ function Section({
 export function SettingsView() {
   const { settings, updateSettings, conversations, clearAllConversations } =
     useWorkspace();
-  const { status, refresh, isChecking } = useModelStatus();
+  const { status, refresh, isChecking } = useModelStatus(settings.model);
+  const imageService = useImageServiceStatus(
+    settings.imageGenerationUrl,
+    settings.imageGenerationEnabled,
+  );
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   const messageCount = conversations.reduce(
@@ -146,6 +151,34 @@ export function SettingsView() {
               <p className="mt-1.5 text-[12px] leading-5 text-faint">
                 Fewer messages means the model reads less history before
                 answering, which speeds up the response.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="num-thread-select"
+                className="block text-[13px] text-faint"
+              >
+                CPU threads
+              </label>
+              <select
+                id="num-thread-select"
+                value={settings.numThread}
+                onChange={(event) =>
+                  updateSettings({ numThread: Number(event.target.value) })
+                }
+                className="mt-1.5 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 font-mono text-[13px] text-ink outline-none transition focus:border-accent/50"
+              >
+                <option value={2}>2 threads</option>
+                <option value={4}>4 threads — recommended</option>
+                <option value={6}>6 threads</option>
+                <option value={8}>8 threads</option>
+                <option value={12}>12 threads</option>
+                <option value={16}>16 threads</option>
+              </select>
+              <p className="mt-1.5 text-[12px] leading-5 text-faint">
+                More threads use more CPU cores for faster inference. Set to
+                roughly half your CPU core count.
               </p>
             </div>
           </div>
@@ -280,6 +313,36 @@ export function SettingsView() {
               Run <code className="rounded bg-surface-3 px-1 py-0.5 font-mono">python-server/start.bat</code> to start the local image generation service.
             </p>
           </div>
+
+          {settings.imageGenerationEnabled && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-line-soft bg-surface-2/50 px-3 py-2">
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  imageService.status.status === "ready"
+                    ? "bg-online"
+                    : imageService.status.status === "loading"
+                      ? "bg-amber-400"
+                      : "bg-offline",
+                  isChecking && "thinking-dot",
+                )}
+              />
+              <span className="min-w-0 flex-1 truncate text-[12px] text-faint">
+                {imageService.status.message ??
+                  (imageService.status.status === "ready"
+                    ? "Image service is ready."
+                    : "Image service status unknown.")}
+              </span>
+              <button
+                type="button"
+                onClick={() => void imageService.refresh()}
+                disabled={imageService.isChecking}
+                className="shrink-0 rounded-md px-2 py-1 text-[11px] text-muted transition hover:text-ink disabled:opacity-50"
+              >
+                {imageService.isChecking ? "Checking…" : "Re-check"}
+              </button>
+            </div>
+          )}
         </Section>
 
         <Section
