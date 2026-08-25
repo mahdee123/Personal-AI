@@ -1,20 +1,21 @@
 Starting server on http://localhost:8000
 
 ==================================================
-  Mahdee AI â€” Image Generation Server
+  Mahdee AI — Image Generation Server
 ==================================================
 
-Loading stabilityai/sdxl-turbo model...
-First run will download ~7GB of model weights.
-This may take a few minutes depending on your connection.
+Loading SimianLuo/LCM_Dreamshaper_v7...
+First run will download ~2GB of model weights.
 
+Loading Tiny AutoEncoder for faster decoding...
 No CUDA GPU detected. Running on CPU.
-Each image will take roughly 20-60 seconds to generate.
-
+Each image will take roughly 8-15 seconds to generate.
 Model loaded successfully on CPU
 
-INFO:     127.0.0.1:54438 - "GET /health HTTP/1.1" 200 OK
-Generating image: "a small red fox sitting in snow, digital art..."
-Image generated in 63.9s
-INFO:     127.0.0.1:58948 - "POST /generate HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61480 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53297 - "GET /health HTTP/1.1" 200 OK
+Generating image: "a cute cat sitting on a windowsill..."
+Image generated in 45.6s
+INFO:     127.0.0.1:55223 - "POST /generate HTTP/1.1" 200 OK
+Generating image: "a beautiful sunset over mountains..."
+Image generated in 29.0s
+INFO:     127.0.0.1:52718 - "POST /generate HTTP/1.1" 200 OK

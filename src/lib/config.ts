@@ -36,9 +36,16 @@ export const OLLAMA_TIMEOUT_MS = Number.parseInt(
  * it's considered stuck and aborted. Resets on every chunk received, so a
  * reply that's merely slow (not hung) is never killed by this — only a
  * connection that's gone genuinely silent is.
+ *
+ * Vision requests emit nothing at all during image encoding / prompt eval —
+ * no partial chunk arrives to reset this clock until the model starts
+ * producing text. Measured on an i5-10400 (6 cores) with other apps running:
+ * that silent phase alone took ~75-90s, with real variance depending on what
+ * else is competing for CPU. 90s cut it too close and caused false timeouts;
+ * this needs real headroom above the slow end of that range, not just past it.
  */
 export const OLLAMA_IDLE_TIMEOUT_MS = Number.parseInt(
-  readEnv("OLLAMA_IDLE_TIMEOUT_MS", "90000"),
+  readEnv("OLLAMA_IDLE_TIMEOUT_MS", "300000"),
   10,
 );
 

@@ -1,11 +1,11 @@
-C:\Users\Murad Hossain\Personal_ai\python-server\server.py:113: DeprecationWarning: 
+C:\Users\Murad Hossain\Personal_ai\python-server\server.py:117: DeprecationWarning: 
         on_event is deprecated, use lifespan event handlers instead.
 
         Read more about it in the
         [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
         
   @app.on_event("startup")
-INFO:     Started server process [25488]
+INFO:     Started server process [25908]
 INFO:     Waiting for application startup.
 [transformers] `CLIPImageProcessor` requires torchvision (not installed); falling back to `CLIPImageProcessorPil` for backward compatibility. Install torchvision to use the default backend, or import `CLIPImageProcessorPil` directly to silence this warning.
 [transformers] `SiglipImageProcessor` requires torchvision (not installed); falling back to `SiglipImageProcessorPil` for backward compatibility. Install torchvision to use the default backend, or import `SiglipImageProcessorPil` directly to silence this warning.
@@ -13,14 +13,22 @@ INFO:     Waiting for application startup.
 C:\Users\Murad Hossain\Personal_ai\python-server\venv\Lib\site-packages\huggingface_hub\utils\_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
   warnings.warn(
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\Murad Hossain\Personal_ai\python-server\venv\Lib\site-packages\huggingface_hub\file_download.py:141: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\Murad Hossain\.cache\huggingface\hub\models--SimianLuo--LCM_Dreamshaper_v7. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
 C:\Users\Murad Hossain\Personal_ai\python-server\venv\Lib\site-packages\diffusers\utils\deprecation_utils.py:23: FutureWarning: `torch_dtype` is deprecated and will be removed in version 1.0.0. Please use `dtype` instead.
   deprecate("torch_dtype", "1.0.0", _TORCH_DTYPE_DEPRECATION_MESSAGE)
-Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]Loading pipeline components...:  14%|█▍        | 1/7 [00:00<00:00,  8.44it/s]
-Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 196/196 [00:00<00:00, 3853.36it/s]
-Loading pipeline components...:  29%|██▊       | 2/7 [00:00<00:00,  5.95it/s]Loading pipeline components...:  43%|████▎     | 3/7 [00:00<00:00,  5.28it/s]
-Loading weights:   0%|          | 0/517 [00:00<?, ?it/s][A
-Loading weights:  71%|███████   | 366/517 [00:00<00:00, 3646.82it/s][ALoading weights: 100%|██████████| 517/517 [00:00<00:00, 3793.71it/s]
-Loading pipeline components...:  71%|███████▏  | 5/7 [00:00<00:00,  5.90it/s]Loading pipeline components...:  86%|████████▌ | 6/7 [00:00<00:00,  6.69it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  3.64it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:01<00:00,  4.59it/s]
+Fetching 15 files:   0%|          | 0/15 [00:00<?, ?it/s]Fetching 15 files:  13%|#3        | 2/15 [00:00<00:03,  3.59it/s]Fetching 15 files:  20%|##        | 3/15 [00:00<00:03,  3.76it/s]Fetching 15 files:  40%|####      | 6/15 [00:00<00:01,  8.52it/s]Fetching 15 files:  53%|#####3    | 8/15 [00:01<00:00,  8.83it/s]Fetching 15 files:  67%|######6   | 10/15 [00:01<00:00,  7.04it/s]Fetching 15 files:  73%|#######3  | 11/15 [00:18<00:00,  7.04it/s]Fetching 15 files:  80%|########  | 12/15 [04:24<02:11, 43.99s/it]Fetching 15 files:  87%|########6 | 13/15 [04:24<01:11, 35.63s/it]Fetching 15 files:  93%|#########3| 14/15 [04:27<00:28, 28.45s/it]Fetching 15 files: 100%|##########| 15/15 [07:40<00:00, 67.20s/it]Fetching 15 files: 100%|##########| 15/15 [07:40<00:00, 30.67s/it]
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]Loading pipeline components...:  14%|#4        | 1/7 [00:00<00:03,  1.92it/s]
+Loading weights:   0%|          | 0/396 [00:00<?, ?it/s][A
+Loading weights:  55%|#####4    | 216/396 [00:00<00:00, 2157.54it/s][ALoading weights: 100%|##########| 396/396 [00:00<00:00, 2653.49it/s]
+Loading pipeline components...:  57%|#####7    | 4/7 [00:01<00:00,  3.95it/s]Loading pipeline components...:  71%|#######1  | 5/7 [00:01<00:00,  4.56it/s]Loading pipeline components...:  86%|########5 | 6/7 [00:01<00:00,  3.85it/s]
+Loading weights:   0%|          | 0/196 [00:00<?, ?it/s][ALoading weights: 100%|##########| 196/196 [00:00<00:00, 2737.25it/s]
+Loading pipeline components...: 100%|##########| 7/7 [00:01<00:00,  4.14it/s]Loading pipeline components...: 100%|##########| 7/7 [00:01<00:00,  3.92it/s]
+C:\Users\Murad Hossain\Personal_ai\python-server\venv\Lib\site-packages\huggingface_hub\file_download.py:141: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\Murad Hossain\.cache\huggingface\hub\models--madebyollin--taesd. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:35<00:00, 35.13s/it]100%|██████████| 1/1 [00:35<00:00, 35.14s/it]
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|##5       | 1/4 [00:13<00:40, 13.37s/it] 50%|#####     | 2/4 [00:20<00:18,  9.47s/it] 75%|#######5  | 3/4 [00:29<00:09,  9.21s/it]100%|##########| 4/4 [00:39<00:00,  9.67s/it]100%|##########| 4/4 [00:39<00:00,  9.85s/it]
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|##5       | 1/4 [00:06<00:19,  6.35s/it] 50%|#####     | 2/4 [00:11<00:11,  5.93s/it] 75%|#######5  | 3/4 [00:19<00:06,  6.46s/it]100%|##########| 4/4 [00:25<00:00,  6.30s/it]100%|##########| 4/4 [00:25<00:00,  6.28s/it]

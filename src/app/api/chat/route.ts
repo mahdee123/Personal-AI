@@ -179,6 +179,8 @@ export async function POST(request: Request) {
       typeof body.numThread === "number" && body.numThread >= 1
         ? body.numThread
         : undefined,
+    // Vision models need more time — image encoding + prompt eval is silent.
+    idleTimeoutMs: hasImages ? 600_000 : undefined,
     signal: request.signal,
   });
 

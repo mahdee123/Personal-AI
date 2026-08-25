@@ -217,6 +217,7 @@ export async function* streamChatCompletion(options: {
   think: boolean;
   numPredict?: number;
   numThread?: number;
+  idleTimeoutMs?: number;
   signal?: AbortSignal;
 }): AsyncGenerator<StreamEvent> {
   const ollamaOptions: Record<string, unknown> = {
@@ -231,7 +232,7 @@ export async function* streamChatCompletion(options: {
   }
 
   const abort = createStreamAbort({
-    idleTimeoutMs: OLLAMA_IDLE_TIMEOUT_MS,
+    idleTimeoutMs: options.idleTimeoutMs ?? OLLAMA_IDLE_TIMEOUT_MS,
     maxTimeoutMs: OLLAMA_TIMEOUT_MS,
     userSignal: options.signal,
   });
