@@ -19,6 +19,29 @@ export function deriveTitle(text: string): string {
   return `${cleaned.slice(0, 42).trimEnd()}…`;
 }
 
+// "draw/paint/sketch/illustrate" are essentially never used for anything but
+// producing a visual artifact — "draw a cat" needs no other signal.
+const STRONG_VISUAL_VERBS = /\b(draw|paint|sketch|illustrate|doodle)\b/i;
+// "generate/create/make/design/render/produce" are common general-purpose
+// verbs ("create a document", "make a table") — only count these toward
+// image intent when paired with an explicit image-related noun.
+const GENERAL_VERBS = /\b(generate|create|make|design|render|produce)\b/i;
+const IMAGE_NOUNS =
+  /\b(image|picture|photo|illustration|artwork|drawing|icon|logo|graphic|painting|wallpaper|pic)s?\b/i;
+
+/**
+ * Detects an image-generation request in free-form text — not just a verb at
+ * the very start, so natural phrasing like "now generate a black pen image"
+ * or "please draw a cat" is caught, while a general-purpose verb alone
+ * ("Create a user persona doc") is not mistaken for one.
+ */
+export function isImageGenerationIntent(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  if (STRONG_VISUAL_VERBS.test(trimmed)) return true;
+  return GENERAL_VERBS.test(trimmed) && IMAGE_NOUNS.test(trimmed);
+}
+
 export function formatRelativeTime(timestamp: number): string {
   const seconds = Math.round((Date.now() - timestamp) / 1000);
 

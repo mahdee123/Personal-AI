@@ -6,11 +6,7 @@ import { Composer, type ComposerMode } from "@/components/chat/Composer";
 import { MessageList } from "@/components/chat/MessageList";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { useWorkspace } from "@/context/WorkspaceProvider";
-
-/** Detects if a prompt is likely an image generation request. */
-function isImageGenerationIntent(text: string): boolean {
-  return /^(generate|draw|create|make|design)\s/i.test(text.trim());
-}
+import { isImageGenerationIntent } from "@/lib/utils";
 
 interface FileAttachment {
   name: string;

@@ -23,11 +23,16 @@ export const DEFAULT_MODEL = readEnv("OLLAMA_MODEL", "qwen3:8b");
  * This should rarely be the thing that fires — OLLAMA_IDLE_TIMEOUT_MS below
  * is the primary defense against a stuck request. This just bounds how long
  * a pathologically slow-but-still-responding request can run before giving
- * up. CPU-only vision analysis and deep-thinking replies can legitimately
- * take several minutes, so this is intentionally generous.
+ * up.
+ *
+ * Measured directly against Ollama on this hardware: a single vision
+ * analysis legitimately took 420-570s end to end (qwen3-vl keeps producing
+ * "thinking" output even with think:false, on top of slow CPU prefill). The
+ * old 600s default left almost no margin above that — raised to give real
+ * headroom instead of becoming the next thing that fires too early.
  */
 export const OLLAMA_TIMEOUT_MS = Number.parseInt(
-  readEnv("OLLAMA_TIMEOUT_MS", "600000"),
+  readEnv("OLLAMA_TIMEOUT_MS", "900000"),
   10,
 );
 

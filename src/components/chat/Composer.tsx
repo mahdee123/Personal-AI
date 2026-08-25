@@ -4,18 +4,13 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type R
 
 import { CloseIcon, ImageIcon, PaperclipIcon, SendIcon, SparkIcon, StopIcon } from "@/components/ui/Icons";
 import { MODEL_LABEL } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, isImageGenerationIntent } from "@/lib/utils";
 
 const MAX_HEIGHT_PX = 200;
 const MAX_IMAGES = 4;
 const MAX_IMAGE_DIMENSION = 768;
 const ACCEPTED_FILE_TYPES = ".pdf,.txt,.md,.csv,.json";
 const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/webp,image/gif";
-
-/** Detects if a prompt is likely an image generation request. */
-function isImageGenerationIntent(text: string): boolean {
-  return /^(generate|draw|create|make|design)\s/i.test(text.trim());
-}
 
 /**
  * Resizes an image file to fit within MAX_IMAGE_DIMENSION and converts to
